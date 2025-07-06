@@ -4,7 +4,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
@@ -12,7 +11,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
@@ -55,6 +53,7 @@ class MainActivity : ComponentActivity() {
 fun HoloPersonaApp() {
     var selectedSkeletonType by remember { mutableIntStateOf(1) } // DETAILED_HUMANOID
     var showControls by remember { mutableStateOf(true) }
+    var useObjLoader by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 3D Background View
@@ -62,10 +61,14 @@ fun HoloPersonaApp() {
                 factory = { context ->
                     HoloPersonaGLSurfaceView(context).apply {
                         setSkeletonType(selectedSkeletonType)
+                        setUseObjLoader(useObjLoader)
                     }
                 },
                 modifier = Modifier.fillMaxSize(),
-                update = { view -> view.setSkeletonType(selectedSkeletonType) }
+                update = { view ->
+                    view.setSkeletonType(selectedSkeletonType)
+                    view.setUseObjLoader(useObjLoader)
+                }
         )
 
         // UI Overlay
@@ -144,6 +147,22 @@ fun HoloPersonaApp() {
                                                 } else null
                                 )
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        // OBJ Loader Toggle
+                        Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                    text = "Use OBJ Loader",
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Switch(checked = useObjLoader, onCheckedChange = { useObjLoader = it })
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))

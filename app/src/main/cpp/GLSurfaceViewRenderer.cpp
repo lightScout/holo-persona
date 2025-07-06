@@ -2,6 +2,8 @@
 #include <memory>
 #include <GLES3/gl3.h>
 #include <cmath>
+#include <android/asset_manager.h>
+#include <android/asset_manager_jni.h>
 
 #include "AndroidOut.h"
 #include "Renderer.h"
@@ -9,15 +11,18 @@
 #include "Utility.h"
 #include "TextureAsset.h"
 #include "SkeletonAsset.h"
+#include "ObjLoader.h"
 
 // Global variables to manage the renderer
 static std::unique_ptr<Shader> gShader;
 static std::vector<Model> gModels;
+static AAssetManager* gAssetManager = nullptr;
 static int gWidth = 0;
 static int gHeight = 0;
 static int gCurrentSkeletonType = 1; // Default to DETAILED_HUMANOID
 static int gRequestedSkeletonType = 1; // Thread-safe skeleton type switching
 static bool gSkeletonTypeChanged = false; // Flag to indicate model recreation needed
+static bool gUseObjLoader = false; // Flag to switch between OBJ and box-based skeletons
 static float gCharacterRotationY = 0.0f;
 static float gCameraRotationY = 0.0f;
 static bool gTouchActive = false;
@@ -25,12 +30,12 @@ static float gLastTouchX = 0.0f;
 static float gLastTouchY = 0.0f;
 
 // 3D rendering constants
-static constexpr float kCameraDistance = 25.0f;     // Move camera back for better view
+static constexpr float kCameraDistance = 20.0f;     // Closer for MakeHuman models
 static constexpr float kCameraHeight = 0.0f;
 static constexpr float kFieldOfView = 60.0f * M_PI / 180.0f;  // Wider field of view
 static constexpr float kNearPlane = 0.1f;
 static constexpr float kFarPlane = 100.0f;
-static constexpr float kCharacterScale = 1.0f;     // Normal size character
+static constexpr float kCharacterScale = 0.5f;     // Scale down MakeHuman models
 
 // Simple test triangle for debugging
 void createTestTriangle(std::vector<Vertex>& vertices, std::vector<Index>& indices) {
@@ -87,14 +92,33 @@ void createModels() {
         std::vector<Vertex> vertices;
         std::vector<Index> indices;
         
-        // Use the skeleton model (restored from original)
-        SkeletonAsset::SkeletonType skeletonType = static_cast<SkeletonAsset::SkeletonType>(gCurrentSkeletonType);
-        SkeletonAsset::createSkeleton(skeletonType, vertices, indices);
-        
-        aout << "DEBUG: Created skeleton with " << vertices.size() << " vertices, " << indices.size() << " indices" << std::endl;
+        if (gUseObjLoader && gAssetManager) {
+            // Try to load OBJ file first, fall back to box-based if it fails
+            bool objLoaded = false;
+            
+            // Try to load MakeHuman model
+            if (ObjLoader::loadFromAssets(gAssetManager, "test_model.obj", vertices, indices)) {
+                aout << "DEBUG: Loaded MakeHuman model with " << vertices.size() << " vertices, " << indices.size() << " indices" << std::endl;
+                objLoaded = true;
+            } else {
+                aout << "WARNING: Failed to load MakeHuman model, falling back to box-based skeleton" << std::endl;
+            }
+            
+            if (!objLoaded) {
+                // Fall back to box-based skeleton
+                SkeletonAsset::SkeletonType skeletonType = static_cast<SkeletonAsset::SkeletonType>(gCurrentSkeletonType);
+                SkeletonAsset::createSkeleton(skeletonType, vertices, indices);
+                aout << "DEBUG: Created fallback skeleton with " << vertices.size() << " vertices, " << indices.size() << " indices" << std::endl;
+            }
+        } else {
+            // Use the box-based skeleton model 
+            SkeletonAsset::SkeletonType skeletonType = static_cast<SkeletonAsset::SkeletonType>(gCurrentSkeletonType);
+            SkeletonAsset::createSkeleton(skeletonType, vertices, indices);
+            aout << "DEBUG: Created box-based skeleton with " << vertices.size() << " vertices, " << indices.size() << " indices" << std::endl;
+        }
         
         if (vertices.empty() || indices.empty()) {
-            aout << "ERROR: Skeleton creation produced empty geometry!" << std::endl;
+            aout << "ERROR: Model creation produced empty geometry!" << std::endl;
             return;
         }
     
@@ -366,6 +390,30 @@ Java_org_lightscout_holopersona_HoloPersonaGLSurfaceView_00024HoloPersonaRendere
     
     // Thread-safe skeleton type switching - defer model creation to render thread
     gRequestedSkeletonType = skeletonType;
+    gSkeletonTypeChanged = true;
+}
+
+JNIEXPORT void JNICALL
+Java_org_lightscout_holopersona_HoloPersonaGLSurfaceView_00024HoloPersonaRenderer_nativeSetAssetManager(
+        JNIEnv *env, jobject thiz, jobject assetManager) {
+    
+    if (assetManager != nullptr) {
+        gAssetManager = AAssetManager_fromJava(env, assetManager);
+        aout << "GLSurfaceView: AssetManager set successfully" << std::endl;
+    } else {
+        gAssetManager = nullptr;
+        aout << "GLSurfaceView: AssetManager cleared" << std::endl;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_org_lightscout_holopersona_HoloPersonaGLSurfaceView_00024HoloPersonaRenderer_nativeSetUseObjLoader(
+        JNIEnv *env, jobject thiz, jboolean useObjLoader) {
+    
+    aout << "GLSurfaceView: Setting OBJ loader usage to " << (useObjLoader ? "true" : "false") << std::endl;
+    
+    gUseObjLoader = useObjLoader;
+    // Trigger model recreation
     gSkeletonTypeChanged = true;
 }
 

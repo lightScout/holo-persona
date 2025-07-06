@@ -13,7 +13,8 @@ add_library(holopersona SHARED
         Shader.cpp
         TextureAsset.cpp
         Utility.cpp
-        SkeletonAsset.cpp)
+        SkeletonAsset.cpp
+        ObjLoader.cpp)
 
 # Configure libraries CMake uses to link your target library.
 target_link_libraries(holopersona

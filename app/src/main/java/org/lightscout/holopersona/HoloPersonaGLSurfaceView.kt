@@ -18,7 +18,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : GLSurfaceView(conte
         setEGLContextClientVersion(3)
 
         // Set up the renderer
-        renderer = HoloPersonaRenderer()
+        renderer = HoloPersonaRenderer(context)
         setRenderer(renderer)
 
         // Render the view only when there is a change in the drawing data
@@ -41,7 +41,7 @@ constructor(context: Context, attrs: AttributeSet? = null) : GLSurfaceView(conte
         return true
     }
 
-    private class HoloPersonaRenderer : GLSurfaceView.Renderer {
+    private class HoloPersonaRenderer(private val context: Context) : GLSurfaceView.Renderer {
 
         private var surfaceWidth: Int = 0
         private var surfaceHeight: Int = 0
@@ -56,8 +56,12 @@ constructor(context: Context, attrs: AttributeSet? = null) : GLSurfaceView(conte
         external fun nativeOnTouchMove(x: Float, y: Float)
         external fun nativeOnTouchUp()
         external fun nativeSetSkeletonType(skeletonType: Int)
+        external fun nativeSetAssetManager(assetManager: android.content.res.AssetManager)
+        external fun nativeSetUseObjLoader(useObjLoader: Boolean)
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
+            // Initialize AssetManager in native code
+            nativeSetAssetManager(context.assets)
             nativeOnSurfaceCreated()
         }
 
@@ -94,10 +98,18 @@ constructor(context: Context, attrs: AttributeSet? = null) : GLSurfaceView(conte
         fun setSkeletonType(skeletonType: Int) {
             nativeSetSkeletonType(skeletonType)
         }
+
+        fun setUseObjLoader(useObjLoader: Boolean) {
+            nativeSetUseObjLoader(useObjLoader)
+        }
     }
 
     fun setSkeletonType(skeletonType: Int) {
         renderer.setSkeletonType(skeletonType)
+    }
+
+    fun setUseObjLoader(useObjLoader: Boolean) {
+        renderer.setUseObjLoader(useObjLoader)
     }
 
     companion object {
